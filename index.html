@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Study AI</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#223229">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Study AI">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root {
+    --board: #223229;
+    --board-soft: #2b3d33;
+    --board-line: rgba(245, 243, 234, 0.14);
+    --chalk: #f5f3ea;
+    --chalk-dim: #a9b6a6;
+    --chalk-yellow: #e8c468;
+    --chalk-red: #e0908c;
+    --chalk-green: #9bc99b;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    color: var(--chalk);
+    background:
+      radial-gradient(circle at 15% 20%, rgba(255,255,255,0.025) 1px, transparent 1.5px) 0 0/26px 26px,
+      radial-gradient(circle at 60% 70%, rgba(255,255,255,0.02) 1px, transparent 1.5px) 0 0/34px 34px,
+      var(--board);
+    min-height: 100vh;
+  }
+
+  /* ---- Top bar ---- */
+  #topbar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 16px 20px; border-bottom: 1px solid var(--board-line);
+  }
+  #sidebarToggleBtn {
+    width: 38px; height: 38px; padding: 0; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1.5px solid var(--board-line); background: transparent; color: var(--chalk);
+  }
+  #sidebarToggleBtn:hover { border-color: var(--chalk-yellow); color: var(--chalk-yellow); }
+  #topbar h1 { font-family: 'Kalam', cursive; font-size: 22px; margin: 0; flex-shrink: 0; }
+  #authStatus { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--chalk-dim); margin-left: auto; }
+  .mode-badge {
+    padding: 5px 12px; border-radius: 3px; font-family: 'Kalam', cursive; font-size: 12.5px;
+    font-weight: 700; border: 1.5px dashed var(--board-line); transform: rotate(-1deg); flex-shrink: 0;
+  }
+  .mode-book { color: var(--chalk-yellow); border-color: var(--chalk-yellow); }
+  .mode-general { color: var(--chalk-dim); border-color: var(--board-line); }
+
+  /* ---- Sidebar ---- */
+  #sidebarOverlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 40;
+  }
+  #sidebarOverlay.open { opacity: 1; pointer-events: auto; }
+  #sidebar {
+    position: fixed; top: 0; left: 0; height: 100vh; width: 280px;
+    background: var(--board-soft); border-right: 1px solid var(--board-line);
+    transform: translateX(-100%); transition: transform .2s; z-index: 50;
+    display: flex; flex-direction: column; padding: 18px;
+  }
+  #sidebar.open { transform: translateX(0); }
+  #sidebar h2 { font-family: 'Kalam', cursive; font-size: 16px; margin: 0 0 12px; color: var(--chalk-dim); }
+  #newChatBtn { width: 100%; margin-bottom: 10px; }
+  #chatSearchInput {
+    width: 100%; padding: 9px 11px; border-radius: 6px; border: 1px solid var(--board-line);
+    background: var(--board); color: var(--chalk); font-size: 13px; margin-bottom: 14px; font-family: 'Inter', sans-serif;
+  }
+  #chatList { flex: 1; overflow-y: auto; margin-bottom: 14px; }
+  .chat-item {
+    display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; color: var(--chalk-dim); margin-bottom: 4px;
+  }
+  .chat-item:hover { background: rgba(255,255,255,0.05); color: var(--chalk); }
+  .chat-item.active { background: rgba(232, 196, 104, 0.12); color: var(--chalk-yellow); }
+  .chat-item .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chat-item .delete-btn {
+    border: none; background: none; color: var(--chalk-dim); font-size: 14px; padding: 2px 4px; cursor: pointer;
+  }
+  .chat-item .delete-btn:hover { color: var(--chalk-red); }
+  #sidebarNav { border-top: 1px dashed var(--board-line); padding-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .nav-btn {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 6px;
+    border: none; background: transparent; color: var(--chalk); font-family: 'Kalam', cursive;
+    font-size: 15px; text-align: left; cursor: pointer;
+  }
+  .nav-btn:hover { background: rgba(255,255,255,0.06); }
+  .nav-btn.active { background: rgba(232, 196, 104, 0.12); color: var(--chalk-yellow); }
+
+  /* ---- Main content ---- */
+  #main { max-width: 760px; margin: 0 auto; padding: 28px 22px 80px; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  #chat {
+    background: var(--board-soft); border: 1px solid var(--board-line); border-radius: 6px;
+    padding: 18px; min-height: 320px; max-height: 55vh; overflow-y: auto; margin-bottom: 14px;
+  }
+  .msg { margin-bottom: 16px; font-size: 14.5px; line-height: 1.6; }
+  .msg:last-child { margin-bottom: 0; }
+  .msg.user { color: var(--chalk); }
+  .msg.ai { color: var(--chalk-yellow); }
+  .msg b {
+    display: block; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--chalk-dim); margin-bottom: 4px;
+  }
+  .video-replay-btn {
+    display: inline-flex; align-items: center; gap: 8px; margin-top: 6px;
+    padding: 8px 14px; border-radius: 6px; border: 1.5px solid var(--chalk-yellow);
+    color: var(--chalk-yellow); background: transparent; font-family: 'Kalam', cursive; font-size: 13.5px; cursor: pointer;
+  }
+  .video-replay-btn:hover { background: var(--chalk-yellow); color: var(--board); }
+
+  #inputRow { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; }
+  #questionInput {
+    flex: 1; padding: 12px 14px; border: 1px solid var(--board-line); border-radius: 6px;
+    font-size: 14px; font-family: 'Inter', sans-serif; background: var(--board-soft); color: var(--chalk);
+  }
+  #questionInput::placeholder { color: var(--chalk-dim); }
+  #questionInput:focus-visible, button:focus-visible, select:focus-visible, .icon-btn:focus-visible {
+    outline: 2px solid var(--chalk-yellow); outline-offset: 2px;
+  }
+  .icon-btn {
+    width: 42px; height: 42px; flex-shrink: 0; padding: 0; border-radius: 6px;
+    border: 1.5px solid var(--board-line); background: transparent; color: var(--chalk);
+    display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer;
+  }
+  .icon-btn:hover { border-color: var(--chalk-yellow); color: var(--chalk-yellow); }
+  .icon-btn.recording { border-color: var(--chalk-red); color: var(--chalk-red); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+  #langToggleBtn { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; }
+  #hint { font-size: 11.5px; color: var(--chalk-dim); margin: 0 0 26px; }
+  #hint code { color: var(--chalk-yellow); }
+
+  button {
+    padding: 11px 20px; border: 1.5px solid var(--chalk-yellow); border-radius: 6px; background: transparent;
+    color: var(--chalk-yellow); font-family: 'Kalam', cursive; font-size: 15px; font-weight: 700; cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  button:hover:not(:disabled) { background: var(--chalk-yellow); color: var(--board); }
+  button:disabled { opacity: .4; cursor: default; }
+
+  h3 { font-family: 'Kalam', cursive; font-size: 20px; margin: 0 0 6px; }
+  .subtext { font-size: 13px; color: var(--chalk-dim); margin: 0 0 16px; }
+
+  select {
+    padding: 10px 12px; border-radius: 6px; border: 1px solid var(--board-line); margin-right: 10px;
+    background: var(--board-soft); color: var(--chalk); font-family: 'Inter', sans-serif; font-size: 13px;
+  }
+
+  .q-card {
+    background: var(--board-soft); border: 1px solid var(--board-line); border-radius: 6px;
+    padding: 18px; margin-bottom: 16px; counter-reset: option-counter;
+  }
+  .q-card p.question { font-weight: 600; margin: 0 0 14px; font-size: 14.5px; color: var(--chalk); }
+  .option {
+    counter-increment: option-counter; display: flex; align-items: center; gap: 12px; width: 100%;
+    text-align: left; margin-bottom: 8px; padding: 10px 14px 10px 10px; background: transparent;
+    color: var(--chalk); border: 1px solid var(--board-line); border-radius: 6px;
+    font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 400;
+  }
+  .option::before {
+    content: counter(option-counter, upper-alpha); flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%;
+    border: 1.5px solid var(--chalk-dim); color: var(--chalk-dim); font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;
+  }
+  .option:hover:not([data-locked]) { border-color: var(--chalk-yellow); }
+  .option:hover:not([data-locked])::before { border-color: var(--chalk-yellow); color: var(--chalk-yellow); }
+  .option.correct { border-color: var(--chalk-green); background: rgba(155, 201, 155, 0.08); }
+  .option.correct::before { background: var(--chalk-green); border-color: var(--chalk-green); color: var(--board); content: "\2713"; }
+  .option.incorrect { border-color: var(--chalk-red); background: rgba(224, 144, 140, 0.08); }
+  .option.incorrect::before { background: var(--chalk-red); border-color: var(--chalk-red); color: var(--board); content: "\2715"; }
+  .explanation {
+    font-size: 12.5px; color: var(--chalk-dim); margin-top: 10px; padding-top: 10px;
+    border-top: 1px dashed var(--board-line); display: none;
+  }
+  #scoreBox { font-family: 'Kalam', cursive; font-size: 17px; color: var(--chalk-yellow); margin-top: 6px; }
+
+  /* ---- Add books view ---- */
+  #dropzone {
+    border: 2px dashed var(--board-line); border-radius: 10px; padding: 40px; text-align: center;
+    color: var(--chalk-dim); cursor: pointer; transition: border-color .15s;
+  }
+  #dropzone.drag { border-color: var(--chalk-yellow); color: var(--chalk-yellow); }
+  #bookStatus { margin-top: 14px; font-size: 13px; color: var(--chalk-dim); white-space: pre-wrap; }
+  #bookList { margin-top: 20px; }
+  .book-row {
+    display: flex; justify-content: space-between; align-items: center; padding: 10px 14px;
+    border: 1px solid var(--board-line); border-radius: 6px; margin-bottom: 8px; font-size: 13.5px;
+  }
+  progress { width: 100%; margin-top: 10px; accent-color: var(--chalk-yellow); }
+
+  /* ---- Video player modal ---- */
+  #videoModal {
+    position: fixed; inset: 0; background: rgba(10,14,11,0.92); z-index: 60;
+    display: none; align-items: center; justify-content: center; padding: 20px;
+  }
+  #videoModal.open { display: flex; }
+  #videoStage {
+    width: 100%; max-width: 640px; background: var(--board-soft); border: 1px solid var(--board-line);
+    border-radius: 10px; padding: 40px 36px; text-align: center;
+  }
+  #videoStage h4 { font-family: 'Kalam', cursive; font-size: 24px; margin: 0 0 18px; color: var(--chalk-yellow); }
+  #videoStage p { font-size: 15px; line-height: 1.6; color: var(--chalk); min-height: 90px; }
+  #videoDots { display: flex; justify-content: center; gap: 6px; margin: 20px 0; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--board-line); }
+  .dot.active { background: var(--chalk-yellow); }
+  #videoControls { display: flex; justify-content: center; gap: 10px; margin-top: 14px; }
+  #videoControls button { padding: 9px 16px; font-size: 13px; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <button id="sidebarToggleBtn" aria-label="Menu">&#9776;</button>
+  <h1>Study AI</h1>
+  <div id="modeBadge" class="mode-badge mode-general">Loading...</div>
+  <div id="authStatus">Signing you in...</div>
+</div>
+
+<div id="sidebarOverlay"></div>
+<div id="sidebar">
+  <button id="newChatBtn">+ New chat</button>
+  <input id="chatSearchInput" placeholder="Search chats..." />
+  <div id="chatList"></div>
+  <div id="sidebarNav">
+    <button class="nav-btn" data-view="test">&#128221; Test yourself</button>
+    <button class="nav-btn" data-view="books">&#128218; Add books</button>
+  </div>
+</div>
+
+<div id="main">
+
+  <div id="chatView" class="view active">
+    <div id="chat"></div>
+    <div id="inputRow">
+      <button id="voiceBtn" class="icon-btn" title="Speak your question">&#127908;</button>
+      <input id="questionInput" placeholder="Ask something, or type /create <topic> for a video..." disabled />
+      <button id="langToggleBtn" class="icon-btn" title="Voice language">EN</button>
+      <button id="askBtn" disabled>Ask</button>
+    </div>
+    <p id="hint">Tip: type <code>/create photosynthesis</code> (or any topic) to get a narrated slide video instead of a text answer.</p>
+  </div>
+
+  <div id="testView" class="view">
+    <h3>Test yourself</h3>
+    <p class="subtext">Generates questions from whichever book(s) you've uploaded. Disabled until at least one book is loaded.</p>
+    <select id="bookSelect"><option value="">All uploaded books</option></select>
+    <button id="generateTestBtn" disabled>Generate Test</button>
+    <div id="testArea" style="margin-top:18px;"></div>
+  </div>
+
+  <div id="booksView" class="view">
+    <h3>Add books</h3>
+    <p class="subtext">Upload a textbook PDF. It gets split into chunks, embedded, and stored — the tutor and test generator will then use only this material.</p>
+    <div id="dropzone">Click or drop a PDF here</div>
+    <input type="file" id="fileInput" accept="application/pdf" style="display:none">
+    <progress id="bookProgress" value="0" max="100" style="display:none"></progress>
+    <div id="bookStatus"></div>
+    <div id="bookList"></div>
+  </div>
+
+</div>
+
+<div id="videoModal">
+  <div id="videoStage">
+    <h4 id="videoTitle"></h4>
+    <p id="videoContent"></p>
+    <div id="videoDots"></div>
+    <div id="videoControls">
+      <button id="videoPrevBtn">&#8592; Prev</button>
+      <button id="videoPlayBtn">Pause</button>
+      <button id="videoNextBtn">Next &#8594;</button>
+      <button id="videoCloseBtn">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase SDK (modular v9+, loaded as ES modules) -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getAuth, signInAnonymously, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import {
+  getFirestore, collection, doc, addDoc, setDoc, getDoc, getDocs, deleteDoc,
+  query, orderBy, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ---- Fill these in ----
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBm3KFsl3muaei6WsBXcwn1T1huIhsHa8o",
+  authDomain: "study-ai-53159.firebaseapp.com",
+  projectId: "study-ai-53159",
+  storageBucket: "study-ai-53159.firebasestorage.app",
+  messagingSenderId: "737404705749",
+  appId: "1:737404705749:web:b3e524d3f8de7fb7387b5c"
+};
+const WORKER_URL = "https://study-ai-worker.malikmaheer468.workers.dev";
+
+const app = initializeApp(FIREBASE_CONFIG);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+let currentUser = null;
+let currentChatId = null;
+let voiceLang = 'en-US'; // toggled between 'en-US' and 'hi-IN'
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    currentUser = user;
+    document.getElementById('authStatus').textContent = `Signed in (${user.uid.slice(0, 8)}...)`;
+    document.getElementById('questionInput').disabled = false;
+    document.getElementById('askBtn').disabled = false;
+    await refreshMode();
+    await loadChatList();
+  }
+});
+signInAnonymously(auth).catch(err => {
+  document.getElementById('authStatus').textContent = 'Sign-in failed: ' + err.message;
+});
+
+// ================= Sidebar & view switching =================
+const sidebar = document.getElementById('sidebar');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+document.getElementById('sidebarToggleBtn').onclick = () => {
+  sidebar.classList.add('open'); sidebarOverlay.classList.add('open');
+};
+sidebarOverlay.onclick = closeSidebar;
+function closeSidebar() {
+  sidebar.classList.remove('open'); sidebarOverlay.classList.remove('open');
+}
+
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  if (name === 'chat') {
+    document.getElementById('chatView').classList.add('active');
+  } else {
+    document.getElementById(name + 'View').classList.add('active');
+    document.querySelector(`.nav-btn[data-view="${name}"]`).classList.add('active');
+  }
+}
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.onclick = () => { showView(btn.dataset.view); closeSidebar(); };
+});
+
+// ================= Chat session management =================
+document.getElementById('newChatBtn').onclick = async () => {
+  currentChatId = null;
+  document.getElementById('chat').innerHTML = '';
+  showView('chat');
+  closeSidebar();
+  await loadChatList();
+};
+
+async function ensureChat(firstMessageText) {
+  if (currentChatId) return currentChatId;
+  const title = firstMessageText.slice(0, 40) + (firstMessageText.length > 40 ? '...' : '');
+  const chatRef = await addDoc(collection(db, 'users', currentUser.uid, 'chats'), {
+    title, createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+  });
+  currentChatId = chatRef.id;
+  await loadChatList();
+  return currentChatId;
+}
+
+async function loadChatList(filterText = '') {
+  const q = query(collection(db, 'users', currentUser.uid, 'chats'), orderBy('updatedAt', 'desc'));
+  const snap = await getDocs(q);
+  const listEl = document.getElementById('chatList');
+  listEl.innerHTML = '';
+  snap.docs
+    .filter(d => !filterText || (d.data().title || '').toLowerCase().includes(filterText.toLowerCase()))
+    .forEach(d => {
+      const row = document.createElement('div');
+      row.className = 'chat-item' + (d.id === currentChatId ? ' active' : '');
+      row.innerHTML = `<span class="title">${d.data().title || 'Untitled'}</span><button class="delete-btn" title="Delete chat">&#128465;</button>`;
+      row.querySelector('.title').onclick = () => selectChat(d.id);
+      row.querySelector('.delete-btn').onclick = async (e) => {
+        e.stopPropagation();
+        if (confirm('Delete this chat? This cannot be undone.')) await deleteChat(d.id);
+      };
+      listEl.appendChild(row);
+    });
+}
+document.getElementById('chatSearchInput').addEventListener('input', (e) => loadChatList(e.target.value));
+
+async function selectChat(chatId) {
+  currentChatId = chatId;
+  document.getElementById('chat').innerHTML = '';
+  const q = query(collection(db, 'users', currentUser.uid, 'chats', chatId, 'messages'), orderBy('timestamp', 'asc'));
+  const snap = await getDocs(q);
+  snap.docs.forEach(d => renderMessageToUI(d.data()));
+  showView('chat');
+  closeSidebar();
+  await loadChatList();
+}
+
+async function deleteChat(chatId) {
+  const msgsSnap = await getDocs(collection(db, 'users', currentUser.uid, 'chats', chatId, 'messages'));
+  await Promise.all(msgsSnap.docs.map(d => deleteDoc(d.ref)));
+  await deleteDoc(doc(db, 'users', currentUser.uid, 'chats', chatId));
+  if (chatId === currentChatId) {
+    currentChatId = null;
+    document.getElementById('chat').innerHTML = '';
+  }
+  await loadChatList();
+}
+
+async function saveMessage(role, text, extra = {}) {
+  const chatId = await ensureChat(text);
+  await addDoc(collection(db, 'users', currentUser.uid, 'chats', chatId, 'messages'), {
+    role, text, timestamp: serverTimestamp(), ...extra
+  });
+  await setDoc(doc(db, 'users', currentUser.uid, 'chats', chatId), { updatedAt: serverTimestamp() }, { merge: true });
+}
+
+// ================= Firestore-backed chunk access =================
+async function getAllChunks() {
+  const snap = await getDocs(collection(db, 'users', currentUser.uid, 'chunks'));
+  return snap.docs.map(d => d.data());
+}
+async function getBookNames() {
+  return [...new Set((await getAllChunks()).map(c => c.bookName))];
+}
+
+// ================= Mode indicator =================
+async function refreshMode() {
+  const badge = document.getElementById('modeBadge');
+  const generateBtn = document.getElementById('generateTestBtn');
+  const bookSelect = document.getElementById('bookSelect');
+  const books = await getBookNames();
+  if (books.length > 0) {
+    badge.textContent = `Book mode — ${books.length} book(s)`;
+    badge.className = 'mode-badge mode-book';
+    generateBtn.disabled = false;
+    bookSelect.innerHTML = '<option value="">All uploaded books</option>' +
+      books.map(b => `<option value="${b}">${b}</option>`).join('');
+  } else {
+    badge.textContent = 'General tutor mode';
+    badge.className = 'mode-badge mode-general';
+    generateBtn.disabled = true;
+    bookSelect.innerHTML = '<option value="">No books uploaded yet</option>';
+  }
+  renderBookList(books);
+}
+
+function renderBookList(books) {
+  const el = document.getElementById('bookList');
+  el.innerHTML = books.length ? '<h3 style="font-size:15px;">Uploaded</h3>' : '';
+  books.forEach(b => {
+    const row = document.createElement('div');
+    row.className = 'book-row';
+    row.innerHTML = `<span>${b}</span>`;
+    el.appendChild(row);
+  });
+}
+
+// ================= Worker calls (keys stay server-side) =================
+async function callWorker(path, body) {
+  const idToken = await currentUser.getIdToken();
+  const res = await fetch(WORKER_URL + path, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${idToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return res.json();
+}
+async function embedText(text) {
+  const data = await callWorker('/embed', { model: 'models/text-embedding-004', content: { parts: [{ text }] } });
+  return data.embedding.values;
+}
+async function callGroq(systemPrompt, userPrompt) {
+  const data = await callWorker('/groq', {
+    model: 'llama-3.3-70b-versatile',
+    messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }]
+  });
+  return data.choices[0].message.content;
+}
+function cosineSimilarity(a, b) {
+  let dot = 0, magA = 0, magB = 0;
+  for (let i = 0; i < a.length; i++) { dot += a[i]*b[i]; magA += a[i]*a[i]; magB += b[i]*b[i]; }
+  return dot / (Math.sqrt(magA) * Math.sqrt(magB));
+}
+async function retrieveRelevantChunks(question, topK = 4) {
+  const chunks = await getAllChunks();
+  if (chunks.length === 0) return [];
+  const qEmbedding = await embedText(question);
+  const scored = chunks.map(c => ({ ...c, score: cosineSimilarity(qEmbedding, c.embedding) }));
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, topK);
+}
+
+// ================= Ask (tutor) + /create =================
+document.getElementById('askBtn').onclick = handleSubmit;
+document.getElementById('questionInput').addEventListener('keydown', e => { if (e.key === 'Enter') handleSubmit(); });
+
+async function handleSubmit() {
+  const input = document.getElementById('questionInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+
+  if (text.toLowerCase().startsWith('/create ')) {
+    await createVideo(text.slice(8).trim());
+  } else {
+    await askQuestion(text);
+  }
+}
+
+async function askQuestion(question) {
+  addMessageToUI({ role: 'user', text: question });
+  await saveMessage('user', question);
+
+  const books = await getBookNames();
+  let answer;
+  if (books.length > 0) {
+    const relevant = await retrieveRelevantChunks(question);
+    const context = relevant.map(c => `[${c.bookName}] ${c.text}`).join('\n\n');
+    const systemPrompt =
+      "You are a strict study tutor. Answer ONLY using the excerpts provided below from the " +
+      "user's uploaded books. If the answer is not contained in these excerpts, say clearly " +
+      "that this topic isn't covered in the uploaded books.\n\nEXCERPTS:\n" + context;
+    answer = await callGroq(systemPrompt, question);
+  } else {
+    answer = await callGroq("You are a friendly, knowledgeable tutor. Explain clearly and simply.", question);
+  }
+  addMessageToUI({ role: 'ai', text: answer });
+  await saveMessage('ai', answer);
+}
+
+function renderMessageToUI(data) {
+  if (data.role === 'video') {
+    addVideoMessageToUI(data.text, JSON.parse(data.slides));
+  } else {
+    addMessageToUI(data);
+  }
+}
+
+function addMessageToUI({ role, text }) {
+  const chat = document.getElementById('chat');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = `<b>${role === 'user' ? 'You' : 'Tutor'}</b>${text}`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function addVideoMessageToUI(topic, slides) {
+  const chat = document.getElementById('chat');
+  const div = document.createElement('div');
+  div.className = 'msg ai';
+  div.innerHTML = `<b>Tutor</b>Video ready: "${topic}"<br><button class="video-replay-btn">&#9654; Play video</button>`;
+  div.querySelector('.video-replay-btn').onclick = () => playVideo(topic, slides);
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+// ================= /create video generation =================
+async function createVideo(topic) {
+  if (!topic) return;
+  addMessageToUI({ role: 'user', text: '/create ' + topic });
+  const chat = document.getElementById('chat');
+  const loadingDiv = document.createElement('div');
+  loadingDiv.className = 'msg ai';
+  loadingDiv.innerHTML = `<b>Tutor</b>Generating video on "${topic}"...`;
+  chat.appendChild(loadingDiv);
+
+  const books = await getBookNames();
+  let contextText = '';
+  if (books.length > 0) {
+    const relevant = await retrieveRelevantChunks(topic, 6);
+    contextText = relevant.map(c => c.text).join('\n\n');
+  }
+
+  const systemPrompt =
+    "You are a video script writer for a study app. Write a narrated slide script explaining the " +
+    "given topic clearly and concisely, in 5 to 7 slides. " +
+    (contextText ? "Base it ONLY on the material given below.\n\nMATERIAL:\n" + contextText + "\n\n" : "") +
+    'Respond with ONLY valid JSON, no markdown fences, in this exact shape: ' +
+    '[{"title":"short slide title","content":"1-2 line key point shown on screen","narration":"2-3 sentences the narrator speaks for this slide, on point and clear"}]';
+
+  const raw = await callGroq(systemPrompt, topic);
+  let slides;
+  try {
+    slides = JSON.parse(raw.replace(/```json|```/g, '').trim());
+  } catch (e) {
+    loadingDiv.innerHTML = `<b>Tutor</b>Couldn't generate that video — try rephrasing the topic.`;
+    return;
+  }
+  loadingDiv.remove();
+  addVideoMessageToUI(topic, slides);
+  await saveMessage('video', topic, { slides: JSON.stringify(slides) });
+  playVideo(topic, slides);
+}
+
+// ================= Video player (narrated slides) =================
+let videoState = { slides: [], index: 0, playing: false };
+
+function playVideo(topic, slides) {
+  videoState = { slides, index: 0, playing: true };
+  document.getElementById('videoModal').classList.add('open');
+  renderSlide();
+  speakCurrentSlide();
+}
+
+function renderSlide() {
+  const s = videoState.slides[videoState.index];
+  document.getElementById('videoTitle').textContent = s.title;
+  document.getElementById('videoContent').textContent = s.content;
+  const dots = document.getElementById('videoDots');
+  dots.innerHTML = '';
+  videoState.slides.forEach((_, i) => {
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i === videoState.index ? ' active' : '');
+    dots.appendChild(dot);
+  });
+  document.getElementById('videoPlayBtn').textContent = videoState.playing ? 'Pause' : 'Play';
+}
+
+function speakCurrentSlide() {
+  speechSynthesis.cancel();
+  if (!videoState.playing) return;
+  const s = videoState.slides[videoState.index];
+  const utter = new SpeechSynthesisUtterance(s.narration);
+  utter.lang = voiceLang;
+  utter.onend = () => {
+    if (!videoState.playing) return;
+    if (videoState.index < videoState.slides.length - 1) {
+      videoState.index++;
+      renderSlide();
+      speakCurrentSlide();
+    } else {
+      videoState.playing = false;
+      renderSlide();
+    }
+  };
+  speechSynthesis.speak(utter);
+}
+
+document.getElementById('videoPlayBtn').onclick = () => {
+  videoState.playing = !videoState.playing;
+  renderSlide();
+  if (videoState.playing) speakCurrentSlide(); else speechSynthesis.cancel();
+};
+document.getElementById('videoNextBtn').onclick = () => {
+  if (videoState.index < videoState.slides.length - 1) { videoState.index++; renderSlide(); if (videoState.playing) speakCurrentSlide(); }
+};
+document.getElementById('videoPrevBtn').onclick = () => {
+  if (videoState.index > 0) { videoState.index--; renderSlide(); if (videoState.playing) speakCurrentSlide(); }
+};
+document.getElementById('videoCloseBtn').onclick = () => {
+  speechSynthesis.cancel();
+  videoState.playing = false;
+  document.getElementById('videoModal').classList.remove('open');
+};
+
+// ================= Voice input =================
+const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+const voiceBtn = document.getElementById('voiceBtn');
+const langToggleBtn = document.getElementById('langToggleBtn');
+let recognition = null;
+let recognizing = false;
+
+if (SpeechRecognitionCtor) {
+  recognition = new SpeechRecognitionCtor();
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  recognition.onresult = (e) => {
+    const transcript = e.results[0][0].transcript;
+    document.getElementById('questionInput').value = transcript;
+    handleSubmit();
+  };
+  recognition.onend = () => { recognizing = false; voiceBtn.classList.remove('recording'); };
+  recognition.onerror = () => { recognizing = false; voiceBtn.classList.remove('recording'); };
+
+  voiceBtn.onclick = () => {
+    if (recognizing) { recognition.stop(); return; }
+    recognition.lang = voiceLang;
+    recognition.start();
+    recognizing = true;
+    voiceBtn.classList.add('recording');
+  };
+} else {
+  voiceBtn.disabled = true;
+  voiceBtn.title = 'Voice input not supported in this browser';
+}
+
+langToggleBtn.onclick = () => {
+  voiceLang = voiceLang === 'en-US' ? 'hi-IN' : 'en-US';
+  langToggleBtn.textContent = voiceLang === 'en-US' ? 'EN' : 'HI';
+};
+
+// ================= Test generation =================
+document.getElementById('generateTestBtn').onclick = generateTest;
+
+async function generateTest() {
+  const bookFilter = document.getElementById('bookSelect').value;
+  const testArea = document.getElementById('testArea');
+  testArea.innerHTML = 'Generating test...';
+
+  let chunks = await getAllChunks();
+  if (bookFilter) chunks = chunks.filter(c => c.bookName === bookFilter);
+  const sample = sampleChunks(chunks, 6);
+  const contextText = sample.map(c => c.text).join('\n\n');
+
+  const systemPrompt =
+    "You are a test-writer. Based ONLY on the material given, write exactly 5 multiple-choice " +
+    "questions to test understanding of it. Respond with ONLY valid JSON, no markdown fences, " +
+    'in this exact shape: [{"question":"...","options":["...","...","...","..."],"correctIndex":0,"explanation":"..."}]';
+
+  const raw = await callGroq(systemPrompt, contextText);
+  let questions;
+  try {
+    questions = JSON.parse(raw.replace(/```json|```/g, '').trim());
+  } catch (e) {
+    testArea.innerHTML = "Couldn't parse the generated test — try again.";
+    return;
+  }
+  renderTest(questions);
+}
+
+function sampleChunks(chunks, n) {
+  if (chunks.length <= n) return chunks;
+  const step = Math.floor(chunks.length / n);
+  const sample = [];
+  for (let i = 0; i < n; i++) sample.push(chunks[i * step]);
+  return sample;
+}
+
+function renderTest(questions) {
+  const testArea = document.getElementById('testArea');
+  testArea.innerHTML = '';
+  let score = 0, answered = 0;
+
+  questions.forEach((q, qi) => {
+    const card = document.createElement('div');
+    card.className = 'q-card';
+    card.innerHTML = `<p class="question">${qi + 1}. ${q.question}</p>`;
+    q.options.forEach((opt, oi) => {
+      const btn = document.createElement('button');
+      btn.className = 'option';
+      btn.textContent = opt;
+      btn.onclick = () => {
+        if (btn.dataset.locked) return;
+        card.querySelectorAll('.option').forEach(b => b.dataset.locked = 'true');
+        if (oi === q.correctIndex) { btn.classList.add('correct'); score++; }
+        else {
+          btn.classList.add('incorrect');
+          card.querySelectorAll('.option')[q.correctIndex].classList.add('correct');
+        }
+        card.querySelector('.explanation').style.display = 'block';
+        answered++;
+        updateScore(score, questions.length, answered);
+      };
+      card.appendChild(btn);
+    });
+    const exp = document.createElement('div');
+    exp.className = 'explanation';
+    exp.textContent = q.explanation;
+    card.appendChild(exp);
+    testArea.appendChild(card);
+  });
+
+  const scoreBox = document.createElement('div');
+  scoreBox.id = 'scoreBox';
+  testArea.appendChild(scoreBox);
+  updateScore(0, questions.length, 0);
+}
+
+function updateScore(score, total, answered) {
+  document.getElementById('scoreBox').textContent =
+    answered === total ? `Final score: ${score}/${total}` : `Answered ${answered}/${total}`;
+}
+
+// ================= Add books (PDF upload -> chunk -> embed -> Firestore) =================
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const bookStatusEl = document.getElementById('bookStatus');
+const bookProgressEl = document.getElementById('bookProgress');
+
+dropzone.onclick = () => fileInput.click();
+dropzone.ondragover = (e) => { e.preventDefault(); dropzone.classList.add('drag'); };
+dropzone.ondragleave = () => dropzone.classList.remove('drag');
+dropzone.ondrop = (e) => {
+  e.preventDefault(); dropzone.classList.remove('drag');
+  if (e.dataTransfer.files.length) handleBookFile(e.dataTransfer.files[0]);
+};
+fileInput.onchange = (e) => { if (e.target.files.length) handleBookFile(e.target.files[0]); };
+
+async function handleBookFile(file) {
+  if (file.type !== 'application/pdf') { bookStatusEl.textContent = 'Please upload a PDF file.'; return; }
+  bookProgressEl.style.display = 'block'; bookProgressEl.value = 0;
+  bookStatusEl.textContent = `Reading "${file.name}"...`;
+
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let fullText = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    fullText += content.items.map(item => item.str).join(' ') + '\n\n';
+    bookProgressEl.value = Math.round((i / pdf.numPages) * 40);
+    bookStatusEl.textContent = `Extracting text... page ${i}/${pdf.numPages}`;
+  }
+
+  const chunks = chunkText(fullText, { wordsPerChunk: 400, overlapWords: 50 });
+  bookStatusEl.textContent = `Embedding ${chunks.length} chunks...`;
+
+  for (let i = 0; i < chunks.length; i++) {
+    const embedding = await embedText(chunks[i].text);
+    await addDoc(collection(db, 'users', currentUser.uid, 'chunks'), {
+      bookName: file.name, chunkId: chunks[i].id, text: chunks[i].text, embedding
+    });
+    bookProgressEl.value = 40 + Math.round(((i + 1) / chunks.length) * 60);
+    bookStatusEl.textContent = `Embedding chunk ${i + 1}/${chunks.length}...`;
+  }
+
+  bookStatusEl.textContent = `Done. "${file.name}" is now available to the tutor and test generator.`;
+  await refreshMode();
+}
+
+function chunkText(text, { wordsPerChunk, overlapWords }) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const chunks = []; let start = 0, index = 0;
+  while (start < words.length) {
+    const end = Math.min(start + wordsPerChunk, words.length);
+    chunks.push({ id: `chunk_${index}`, text: words.slice(start, end).join(' ') });
+    index++;
+    if (end === words.length) break;
+    start = end - overlapWords;
+  }
+  return chunks;
+}
+
+// ================= PWA install support =================
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+  });
+}
+</script>
+
+</body>
+</html>
